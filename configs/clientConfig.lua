@@ -1,18 +1,16 @@
 Doors = {}
-DoorsFnc = {} 
 TriggerServerEvent("plouffe_doorlock:sendConfig")
+local cookie 
+cookie = RegisterNetEvent("plouffe_doorlock:getConfig",function(list)
+	RemoveEventHandler(cookie)
 
-RegisterNetEvent("plouffe_doorlock:getConfig",function(list)
-	if list == nil then
-		CreateThread(function()
-			while true do
-				Wait(0)
-				Doors = nil
-				DoorsFnc = nil
-			end
-		end)
-	else
-		Doors = list
-		DoorsFnc:Start()
+	if not list then
+		return
 	end
+
+	for k,v in pairs(list) do
+		Doors[k] = v
+	end
+
+	Doors:Start()
 end)

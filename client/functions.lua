@@ -1,29 +1,37 @@
 local Utils = exports.plouffe_lib:Get("Utils")
-local ready = false
+local TextUi = exports.plouffe_lib:Get("Interface", "TextUi")
 
-function DoorsFnc:Start()
-    TriggerEvent('ooc_core:getCore', function(Core)     
-        while not Core.Player:IsPlayerLoaded() do
-            Wait(500)
-        end
+local IsDoorRegisteredWithSystem = IsDoorRegisteredWithSystem
+local AddDoorToSystem = AddDoorToSystem
+local DoorSystemSetAutomaticDistance = DoorSystemSetAutomaticDistance
+local DoorSystemSetAutomaticRate = DoorSystemSetAutomaticRate
+local DoorSystemSetDoorState = DoorSystemSetDoorState
 
-        Doors.Player = Core.Player:GetPlayerData()
-    end)
+local PlayerPedId = PlayerPedId
+local GetEntityCoords = GetEntityCoords
 
+local GetClosestObjectOfType = GetClosestObjectOfType
+local DoesEntityExist = DoesEntityExist
+local GetEntityHeading = GetEntityHeading
+local SetEntityHeading = SetEntityHeading
+
+local notifs = {}
+
+function Doors:Start()
     self:ExportsAllZones()
     self:RegisterEvents()
     self:RegisterAllDoors()
 end
 
-function DoorsFnc:ExportsAllZones()
-    for doorIndex, doorInfo in pairs(Doors.DoorList) do
+function Doors:ExportsAllZones()
+    for doorIndex, doorInfo in pairs(self.DoorList) do
         for k,v in ipairs(doorInfo.interactCoords) do
-            local registered, reason = exports.plouffe_lib:ValidateZoneData({
+            local registered, reason = exports.plouffe_lib:Register({
                 name = doorIndex.."_"..tostring(k),
                 coords = v.coords,
-                maxDst = v.maxDst,
+                distance = v.maxDst,
                 isZone = true,
-                aditionalParams = {doorIndex = doorIndex, zoneIndex = k, zoneIndexStr = doorIndex.."_"..tostring(k)},
+                params = {doorIndex = doorIndex, zoneIndex = k, zoneIndexStr = doorIndex.."_"..tostring(k)},
                 zoneMap = {
                     inEvent = "plouffe_doorlock:in_door_zone",
                     outEvent = "plouffe_doorlock:out_door_zone"
@@ -33,57 +41,72 @@ function DoorsFnc:ExportsAllZones()
     end
 end
 
-function DoorsFnc:RegisterEvents()
-    AddEventHandler('plouffe_lib:setGroup', function(data)
-        Doors.Player[data.type] = data
-    end)
-
-    RegisterNetEvent("plouffe_doorlock:in_door_zone", function(data)
+function Doors:RegisterEvents()
+    AddEventHandler("plouffe_doorlock:in_door_zone", function(data)
         self:RegisterAndShowUi(data)
     end)
 
-    RegisterNetEvent("plouffe_doorlock:out_door_zone", function(data)
+    AddEventHandler("plouffe_doorlock:out_door_zone", function(data)
         self:RemoveUi(data)
     end)
 
-    RegisterNetEvent("plouffe_doorlock:updateDoorStateByIndex", function(doorIndex,newState)
+    AddEventHandler("ui-r", function()
+        self.ClearAllNotifs()
+    end)
+
+    Utils:RegisterNetEvent("plouffe_doorlock:updateDoorStateByIndex", function(doorIndex,newState)
         self:UpdateDoorStateByIndex(doorIndex,newState)
     end)
 
-    RegisterNetEvent("plouffe_doorlock:updateDooListStateByIndex", function(list,newState)
+    Utils:RegisterNetEvent("plouffe_doorlock:updateDooListStateByIndex", function(list,newState)
         for key, doorIndex in pairs(list) do
             self:UpdateDoorStateByIndex(doorIndex,newState)
         end
     end)
 
-    RegisterNetEvent("ui-r", function() 
-        self:ClearAllNotifs()
-    end)
-
-    RegisterNetEvent("plouffe_doorlock:sync_automated_doors", function(action,data) 
+    Utils:RegisterNetEvent("plouffe_doorlock:sync_automated_doors", function(action,data)
         if not action then
             return self:RemoveAutomated(data)
         end
-        
+
         self:AddAutomated(data)
+    end)
+
+    Utils:RegisterNetEvent("plouffe_doorlock:registerNewDoor", function(name, data, isAutomated)
+        if not isAutomated then
+            Doors.DoorList[name] = data
+
+            for k,v in ipairs(Doors.DoorList[name].doors) do
+                local doorId = name.."_"..k
+
+                if IsDoorRegisteredWithSystem(doorId) ~= 1 then
+                    AddDoorToSystem(doorId, v.model, v.coords, false, false, false)
+
+                    if v.auto then
+                        DoorSystemSetAutomaticDistance(doorId, v.auto.distance, 0, 1)
+                        DoorSystemSetAutomaticRate(doorId, v.auto.rate, 0, 1)
+                    end
+
+                    DoorSystemSetDoorState(doorId, Doors.DoorList[name].lock, 0, 1)
+                end
+            end
+        else
+            Doors.Automated[name] = data
+        end
     end)
 end
 
-function DoorsFnc:RegisterAllDoors()
-    for doorIndex, doorInfo in pairs(Doors.DoorList) do
+function Doors:RegisterAllDoors()
+    for doorIndex, doorInfo in pairs(self.DoorList) do
         for k,v in ipairs(doorInfo.doors) do
             local doorId = doorIndex.."_"..k
 
-            if doorInfo.register and IsDoorRegisteredWithSystem(doorId) ~= 1 then 
+            if IsDoorRegisteredWithSystem(doorId) ~= 1 then
                 AddDoorToSystem(doorId, v.model, v.coords, false, false, false)
 
                 if v.auto then
-                    if v.auto.distance then
-                        DoorSystemSetAutomaticDistance(doorId, v.auto.distance, 0, 1)
-                    end
-                    if v.auto.rate then
-                        DoorSystemSetAutomaticRate(doorId, v.auto.rate, 0, 1)
-                    end
+                    DoorSystemSetAutomaticDistance(doorId, v.auto.distance, 0, 1)
+                    DoorSystemSetAutomaticRate(doorId, v.auto.rate, 0, 1)
                 end
 
                 DoorSystemSetDoorState(doorId, doorInfo.lock, 0, 1)
@@ -92,13 +115,13 @@ function DoorsFnc:RegisterAllDoors()
     end
 end
 
-function DoorsFnc:GetTargetDoorIndexByCoords()
-    Doors.Utils.ped = PlayerPedId()
-    Doors.Utils.pedCoords = GetEntityCoords(Doors.Utils.ped)
+function Doors:GetTargetDoorIndexByCoords()
+   local ped = PlayerPedId()
+   local pedCoords = GetEntityCoords(ped)
 
-    for doorIndex, doorInfo in pairs(Doors.DoorList) do
+    for doorIndex, doorInfo in pairs(self.DoorList) do
         for k,v in ipairs(doorInfo.interactCoords) do
-            if #(Doors.Utils.pedCoords - v.coords) <= v.maxDst then
+            if #(pedCoords - v.coords) <= v.maxDst then
                 return doorIndex
             end
         end
@@ -107,63 +130,60 @@ function DoorsFnc:GetTargetDoorIndexByCoords()
     return nil
 end
 
-function DoorsFnc.LockUnlock()
-    self = DoorsFnc
+function Doors.LockUnlock()
+    if LocalPlayer.state.dead or LocalPlayer.state.cuffed then
+        return
+    end
 
-    local doorIndex = self:GetTargetDoorIndexByCoords()
+    local doorIndex = Doors:GetTargetDoorIndexByCoords()
 
     if not doorIndex then
         return
     end
 
-    if not self:HasDoorAcces(doorIndex) then
+    if not Doors:HasDoorAcces(doorIndex) then
         return
     end
 
-    TriggerServerEvent("plouffe_doorlock:updateDoorState", doorIndex, not Doors.DoorList[doorIndex].lock and true or false, Doors.Utils.MyAuthKey)
+    TriggerServerEvent("plouffe_doorlock:updateDoorState", doorIndex, not Doors.DoorList[doorIndex].lock and true or false, Doors.auth)
 
     Utils:PlayAnim(1000, "anim@mp_player_intmenu@key_fob@","fob_click",48,2.0, 2.0, 500)
 end
 
-function DoorsFnc:UpdateDoorStateByIndex(index,state)
-    if Doors.DoorList[index] then
-        Doors.DoorList[index].lock = state
+function Doors:UpdateDoorStateByIndex(index,state)
+    if self.DoorList[index] then
+        self.DoorList[index].lock = state
 
-        for k,v in ipairs(Doors.DoorList[index].doors) do
+        for k,v in ipairs(self.DoorList[index].doors) do
             local doorId = index.."_"..k
-            
-            if Doors.DoorList[index].register and IsDoorRegisteredWithSystem(doorId) then 
+
+            if self.DoorList[index].register and IsDoorRegisteredWithSystem(doorId) then
                 DoorSystemSetDoorState(doorId, state, 0, 1)
             end
         end
 
-        for k,v in ipairs(Doors.DoorList[index].interactCoords) do
+        for k,v in ipairs(self.DoorList[index].interactCoords) do
             local indexStr = index.."_"..tostring(k)
 
-            if Doors.ShownNotifs[indexStr] then
+            if notifs[indexStr] then
                 local color = "green"
-                
-                exports.plouffe_lib:HideNotif(indexStr)
-                Doors.ShownNotifs[indexStr] = nil
 
-                if Doors.DoorList[index].lock then
+                if self.DoorList[index].lock then
                     color = "red"
                 end
-                
-                exports.plouffe_lib:ShowNotif(color,indexStr,"[E] "..Doors.DoorList[index].nuiLabel)
-    
-                Doors.ShownNotifs[indexStr] = true
+
+                TextUi.Change({color = color, id = indexStr, message = "[E] Intéragir"})
             end
         end
     end
 end
 
-function DoorsFnc:HasDoorAcces(index)
+function Doors:HasDoorAcces(index)
     if LocalPlayer.state.dead or LocalPlayer.state.cuffed then
         return false
     end
 
-    local this = Doors.DoorList[index]
+    local this = self.DoorList[index]
 
     if this.lock and this.lockOnly then
         return
@@ -172,10 +192,10 @@ function DoorsFnc:HasDoorAcces(index)
     local acces = this.access and this.access.groups or nil
 
     if acces then
-        local jobName = LocalPlayer.state.groups.job and LocalPlayer.state.groups.job.group or nil
+        local jobName = LocalPlayer.state.pgroups.job and LocalPlayer.state.pgroups.job.group or nil
 
         if jobName and acces[jobName] then
-            local jobGrade = tonumber(LocalPlayer.state.groups.job.subgroup)
+            local jobGrade = tonumber(LocalPlayer.state.pgroups.job.subgroup)
 
             if acces[jobName].rankSpecific and acces[jobName].rankSpecific == jobGrade then
                 return true
@@ -184,67 +204,57 @@ function DoorsFnc:HasDoorAcces(index)
             end
         end
 
-        local gangName = LocalPlayer.state.groups.gang and LocalPlayer.state.groups.gang.group or nil
+        local gangName = LocalPlayer.state.pgroups.gang and LocalPlayer.state.pgroups.gang.group or nil
 
         if gangName and acces[gangName] then
-            local gangGrade = tonumber(LocalPlayer.state.groups.gang.subgroup)
+            local gangGrade = tonumber(LocalPlayer.state.pgroups.gang.subgroup)
             if acces[gangName].rankSpecific and acces[gangName].rankSpecific == gangGrade then
                 return true
             elseif acces[gangName].rankMin and acces[gangName].rankMax and gangGrade >= acces[gangName].rankMin and gangGrade <= acces[gangName].rankMax then
                 return true
             end
         end
-
-        if acces.state_id and acces.state_id[Doors.Player.state_id] then
-            return true
-        end
     end
-
 
     return false
 end
 
-function DoorsFnc:RegisterAndShowUi(data)
+function Doors:RegisterAndShowUi(data)
     if not self:HasDoorAcces(data.doorIndex) then
         return
     end
 
     local color = "green"
 
-    if Doors.DoorList[data.doorIndex].lock then
+    if self.DoorList[data.doorIndex].lock then
         color = "red"
     end
-    
-    exports.plouffe_lib:ShowNotif(color,data.zoneIndexStr,"[E] "..Doors.DoorList[data.doorIndex].nuiLabel)
-   
-    Doors.ShownNotifs[data.zoneIndexStr] = true
+
+    TextUi.Show({color = color, id = data.zoneIndexStr, message = "[E] Intéragir"})
+
+    notifs[data.zoneIndexStr] = true
 end
 
-function DoorsFnc:RemoveUi(data)
-    exports.plouffe_lib:HideNotif(data.zoneIndexStr)
-    Doors.ShownNotifs[data.zoneIndexStr] = nil
+function Doors:RemoveUi(data)
+    TextUi.Hide(data.zoneIndexStr)
+    notifs[data.zoneIndexStr] = nil
 end
 
-function DoorsFnc:ClearAllNotifs()
-    for k,v in pairs(Doors.ShownNotifs) do
-        exports.plouffe_lib:HideNotif(k)
+function Doors.ClearAllNotifs()
+    for k,v in pairs(notifs) do
+        TextUi.Hide(k)
     end
-    Doors.ShownNotifs = {}
+    notifs = {}
 end
 
-RegisterCommand("+doorLockUnlock", DoorsFnc.LockUnlock)
+RegisterCommand("+doorLockUnlock", Doors.LockUnlock)
 RegisterKeyMapping('+doorLockUnlock', 'DoorlockUnlock', 'keyboard', 'E')
 
-local GetClosestObjectOfType = GetClosestObjectOfType
-local DoesEntityExist = DoesEntityExist
-local GetEntityHeading = GetEntityHeading
-local SetEntityHeading = SetEntityHeading
-
-function DoorsFnc:RemoveAutomated(data)
+function Doors:RemoveAutomated(data)
     for k,v in pairs(data) do
-        Doors.activeAutomateds[v] = nil
+        self.activeAutomateds[v] = nil
 
-        local data = Doors.Automated[v]
+        local data = self.Automated[v]
         local entity = GetClosestObjectOfType(data.coords.x, data.coords.y, data.coords.z, 2.0, data.model, false, false, false )
 
         if DoesEntityExist(entity) then
@@ -257,18 +267,18 @@ function DoorsFnc:RemoveAutomated(data)
     end
 end
 
-function DoorsFnc:AddAutomated(index)
-    Doors.activeAutomateds[index] = Doors.Automated[index]
+function Doors:AddAutomated(index)
+    self.activeAutomateds[index] = self.Automated[index]
 
-    if Utils:TableLen(Doors.activeAutomateds) > 1 then
+    if Utils:TableLen(self.activeAutomateds) > 1 then
         return
     end
 
     CreateThread(function()
         local sleepTimer = 1000 * 10
-        
-        while Utils:TableLen(Doors.activeAutomateds) > 0 do
-            for k,v in pairs(Doors.activeAutomateds) do
+
+        while Utils:TableLen(self.activeAutomateds) > 0 do
+            for k,v in pairs(self.activeAutomateds) do
                 local entity = GetClosestObjectOfType(v.coords.x, v.coords.y, v.coords.z, 2.0, v.model, false, false, false )
 
                 if DoesEntityExist(entity) then
@@ -285,16 +295,16 @@ function DoorsFnc:AddAutomated(index)
     end)
 end
 
-function DoorsFnc.OpenAutomated(index)
-    local data = Doors.Automated[index]
+function Doors.OpenAutomated(index)
+    local data = self.Automated[index]
     local entity = GetClosestObjectOfType(data.coords.x, data.coords.y, data.coords.z, 2.0, data.model, false, false, false )
-    
+
     if not entity or not DoesEntityExist(entity) then
         return
     end
-    
+
     SetEntityHeading(entity, data.heading.close)
-    
+
     local currentHeading = GetEntityHeading(entity)
 
     while math.ceil(currentHeading) ~= math.ceil(data.heading.open) do
@@ -303,6 +313,6 @@ function DoorsFnc.OpenAutomated(index)
         SetEntityHeading(entity, currentHeading + data.heading.modifier + 0.0)
     end
 
-    TriggerServerEvent("plouffe_doorlock:sync_automated", index, Doors.Utils.MyAuthKey)
+    TriggerServerEvent("plouffe_doorlock:sync_automated", index, self.auth)
 end
-exports("OpenAutomated", DoorsFnc.OpenAutomated)
+exports("OpenAutomated", Doors.OpenAutomated)
