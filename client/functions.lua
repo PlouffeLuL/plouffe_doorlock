@@ -247,9 +247,6 @@ function Doors.ClearAllNotifs()
     notifs = {}
 end
 
-RegisterCommand("+doorLockUnlock", Doors.LockUnlock)
-RegisterKeyMapping('+doorLockUnlock', 'DoorlockUnlock', 'keyboard', 'E')
-
 function Doors:RemoveAutomated(data)
     for k,v in pairs(data) do
         self.activeAutomateds[v] = nil
@@ -296,7 +293,7 @@ function Doors:AddAutomated(index)
 end
 
 function Doors.OpenAutomated(index)
-    local data = self.Automated[index]
+    local data = Doors.Automated[index]
     local entity = GetClosestObjectOfType(data.coords.x, data.coords.y, data.coords.z, 2.0, data.model, false, false, false )
 
     if not entity or not DoesEntityExist(entity) then
@@ -313,6 +310,9 @@ function Doors.OpenAutomated(index)
         SetEntityHeading(entity, currentHeading + data.heading.modifier + 0.0)
     end
 
-    TriggerServerEvent("plouffe_doorlock:sync_automated", index, self.auth)
+    TriggerServerEvent("plouffe_doorlock:sync_automated", index, Doors.auth)
 end
 exports("OpenAutomated", Doors.OpenAutomated)
+
+RegisterCommand("+doorLockUnlock", Doors.LockUnlock)
+RegisterKeyMapping('+doorLockUnlock', 'DoorlockUnlock', 'keyboard', 'E')
