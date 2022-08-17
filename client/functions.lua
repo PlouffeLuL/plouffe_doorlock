@@ -157,7 +157,7 @@ function Doors:UpdateDoorStateByIndex(index,state)
         for k,v in ipairs(self.DoorList[index].doors) do
             local doorId = index.."_"..k
 
-            if self.DoorList[index].register and IsDoorRegisteredWithSystem(doorId) then
+            if IsDoorRegisteredWithSystem(doorId) then
                 DoorSystemSetDoorState(doorId, state, 0, 1)
             end
         end
