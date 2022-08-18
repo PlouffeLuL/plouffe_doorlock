@@ -112,7 +112,7 @@ exports("UpdateDoorStateTable", Doors.UpdateDoorStateTable)
 
 function Doors.RegisterDoor(name, data, isAutomated)
     if Doors.DoorList[name] then
-        return false, print(("Door already exists with name %s"):format(name))
+        print(("^1 [WARNING] ^0 Overriding door %s"):format(name))
     end
 
     if isAutomated then
