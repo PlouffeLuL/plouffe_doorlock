@@ -4,7 +4,7 @@ local activeAutomateds = {}
 
 function Doors.LoadPlayer()
     local playerId = source
-    local registred, key = Auth:Register(playerId)
+    local registred, key = Auth.Register(playerId)
 
     if registred then
         local data = Doors:GetData()
@@ -30,7 +30,7 @@ end
 function Doors.UpdateState(index,state,authkey)
     local playerId = source
 
-    if not Auth:Validate(playerId,authkey) or not Auth:Events(playerId,"plouffe_doorlock:updateDoorState") then
+    if not Auth.Validate(playerId,authkey) or not Auth.Events(playerId,"plouffe_doorlock:updateDoorState") then
         return
     end
 
@@ -40,7 +40,7 @@ end
 function Doors.SyncAutomated(index,authkey)
     local playerId = source
 
-    if not Auth:Validate(playerId,authkey) or not Auth:Events(playerId,"plouffe_doorlock:sync_automated") then
+    if not Auth.Validate(playerId,authkey) or not Auth.Events(playerId,"plouffe_doorlock:sync_automated") then
         return
     end
 
@@ -53,7 +53,7 @@ function Doors.AddAutomated(index)
 
     TriggerClientEvent("plouffe_doorlock:sync_automated_doors", -1, true, index)
 
-    if Utils:TableLen(activeAutomateds) > 1 then
+    if Utils.TableLen(activeAutomateds) > 1 then
         return
     end
 
@@ -61,7 +61,7 @@ function Doors.AddAutomated(index)
         local sleepTimer = 1000 * 60 * 5
         local timeDiff = 60 * 60
 
-        while Utils:TableLen(activeAutomateds) > 0 do
+        while Utils.TableLen(activeAutomateds) > 0 do
             Wait(sleepTimer)
 
             local time = os.time()

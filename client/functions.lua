@@ -54,17 +54,17 @@ function Doors:RegisterEvents()
         self.ClearAllNotifs()
     end)
 
-    Utils:RegisterNetEvent("plouffe_doorlock:updateDoorStateByIndex", function(doorIndex,newState)
+    Utils.RegisterNetEvent("plouffe_doorlock:updateDoorStateByIndex", function(doorIndex,newState)
         self:UpdateDoorStateByIndex(doorIndex,newState)
     end)
 
-    Utils:RegisterNetEvent("plouffe_doorlock:updateDooListStateByIndex", function(list,newState)
+    Utils.RegisterNetEvent("plouffe_doorlock:updateDooListStateByIndex", function(list,newState)
         for key, doorIndex in pairs(list) do
             self:UpdateDoorStateByIndex(doorIndex,newState)
         end
     end)
 
-    Utils:RegisterNetEvent("plouffe_doorlock:sync_automated_doors", function(action,data)
+    Utils.RegisterNetEvent("plouffe_doorlock:sync_automated_doors", function(action,data)
         if not action then
             return self:RemoveAutomated(data)
         end
@@ -72,7 +72,7 @@ function Doors:RegisterEvents()
         self:AddAutomated(data)
     end)
 
-    Utils:RegisterNetEvent("plouffe_doorlock:registerNewDoor", function(name, data, isAutomated)
+    Utils.RegisterNetEvent("plouffe_doorlock:registerNewDoor", function(name, data, isAutomated)
         if not isAutomated then
             Doors.DoorList[name] = data
 
@@ -147,7 +147,7 @@ function Doors.LockUnlock()
 
     TriggerServerEvent("plouffe_doorlock:updateDoorState", doorIndex, not Doors.DoorList[doorIndex].lock and true or false, Doors.auth)
 
-    Utils:PlayAnim(1000, "anim@mp_player_intmenu@key_fob@","fob_click",48,2.0, 2.0, 500)
+    Utils.PlayAnim(1000, "anim@mp_player_intmenu@key_fob@","fob_click",48,2.0, 2.0, 500)
 end
 
 function Doors:UpdateDoorStateByIndex(index,state)
@@ -267,14 +267,14 @@ end
 function Doors:AddAutomated(index)
     self.activeAutomateds[index] = self.Automated[index]
 
-    if Utils:TableLen(self.activeAutomateds) > 1 then
+    if Utils.TableLen(self.activeAutomateds) > 1 then
         return
     end
 
     CreateThread(function()
         local sleepTimer = 1000 * 10
 
-        while Utils:TableLen(self.activeAutomateds) > 0 do
+        while Utils.TableLen(self.activeAutomateds) > 0 do
             for k,v in pairs(self.activeAutomateds) do
                 local entity = GetClosestObjectOfType(v.coords.x, v.coords.y, v.coords.z, 2.0, v.model, false, false, false )
 
