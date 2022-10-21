@@ -1,5 +1,6 @@
 local Utils = exports.plouffe_lib:Get("Utils")
 local TextUi = exports.plouffe_lib:Get("Interface", "TextUi")
+local Groups = exports.plouffe_lib:Get("Groups")
 
 local IsDoorRegisteredWithSystem = IsDoorRegisteredWithSystem
 local AddDoorToSystem = AddDoorToSystem
@@ -77,18 +78,7 @@ function Doors:RegisterEvents()
             Doors.DoorList[name] = data
 
             for k,v in ipairs(Doors.DoorList[name].doors) do
-                local doorId = name.."_"..k
-
-                if IsDoorRegisteredWithSystem(doorId) ~= 1 then
-                    AddDoorToSystem(doorId, v.model, v.coords, false, false, false)
-
-                    if v.auto then
-                        DoorSystemSetAutomaticDistance(doorId, v.auto.distance, 0, 1)
-                        DoorSystemSetAutomaticRate(doorId, v.auto.rate, 0, 1)
-                    end
-
-                    DoorSystemSetDoorState(doorId, Doors.DoorList[name].lock, 0, 1)
-                end
+                Doors.Create(("%s_%s"):format(name,k), v, Doors.DoorList[name].lock)
             end
         else
             Doors.Automated[name] = data
@@ -99,18 +89,7 @@ end
 function Doors:RegisterAllDoors()
     for doorIndex, doorInfo in pairs(self.DoorList) do
         for k,v in ipairs(doorInfo.doors) do
-            local doorId = doorIndex.."_"..k
-
-            if IsDoorRegisteredWithSystem(doorId) ~= 1 then
-                AddDoorToSystem(doorId, v.model, v.coords, false, false, false)
-
-                if v.auto then
-                    DoorSystemSetAutomaticDistance(doorId, v.auto.distance, 0, 1)
-                    DoorSystemSetAutomaticRate(doorId, v.auto.rate, 0, 1)
-                end
-
-                DoorSystemSetDoorState(doorId, doorInfo.lock, 0, 1)
-            end
+            Doors.Create(("%s_%s"):format(doorIndex,k), v, doorInfo.lock)
         end
     end
 end
@@ -158,7 +137,7 @@ function Doors:UpdateDoorStateByIndex(index,state)
             local doorId = index.."_"..k
 
             if IsDoorRegisteredWithSystem(doorId) then
-                DoorSystemSetDoorState(doorId, state, 0, 1)
+                DoorSystemSetDoorState(doorId, state and 1 or 0, 0, 1)
             end
         end
 
@@ -189,26 +168,27 @@ function Doors:HasDoorAcces(index)
         return
     end
 
-    local acces = this.access and this.access.groups or nil
+    local acces =  this.access?.group
 
     if acces then
-        local jobName = LocalPlayer.state.pgroups.job and LocalPlayer.state.pgroups.job.group or nil
+        local jobName, jobGrade = Groups.Get('job')
+        local gangName, gangGrade = Groups.Get('gang')
 
         if jobName and acces[jobName] then
-            local jobGrade = tonumber(LocalPlayer.state.pgroups.job.subgroup)
 
-            if acces[jobName].rankSpecific and acces[jobName].rankSpecific == jobGrade then
+            if type(acces[jobName]) == "boolean" and acces[jobName] then
+                return true
+            elseif acces[jobName].rankSpecific and acces[jobName].rankSpecific == jobGrade then
                 return true
             elseif acces[jobName].rankMin and acces[jobName].rankMax and jobGrade >= acces[jobName].rankMin and jobGrade <= acces[jobName].rankMax then
                 return true
             end
         end
 
-        local gangName = LocalPlayer.state.pgroups.gang and LocalPlayer.state.pgroups.gang.group or nil
-
         if gangName and acces[gangName] then
-            local gangGrade = tonumber(LocalPlayer.state.pgroups.gang.subgroup)
-            if acces[gangName].rankSpecific and acces[gangName].rankSpecific == gangGrade then
+            if type(acces[gangName]) == "boolean" and acces[gangName] then
+                return true
+            elseif acces[gangName].rankSpecific and acces[gangName].rankSpecific == gangGrade then
                 return true
             elseif acces[gangName].rankMin and acces[gangName].rankMax and gangGrade >= acces[gangName].rankMin and gangGrade <= acces[gangName].rankMax then
                 return true
@@ -313,6 +293,19 @@ function Doors.OpenAutomated(index)
     TriggerServerEvent("plouffe_doorlock:sync_automated", index, Doors.auth)
 end
 exports("OpenAutomated", Doors.OpenAutomated)
+
+function Doors.Create(doorId, data, lock)
+    if IsDoorRegisteredWithSystem(doorId) ~= 1 then
+        AddDoorToSystem(doorId, data.model, data.coords.x, data.coords.y, data.coords.z, false, false, false)
+
+        if data.auto then
+            DoorSystemSetAutomaticDistance(doorId, data.auto.distance, 0, 1)
+            DoorSystemSetAutomaticRate(doorId, data.auto.rate, 0, 1)
+        end
+
+        DoorSystemSetDoorState(doorId, lock and 1 or 0, 0, 1)
+    end
+end
 
 RegisterCommand("+doorLockUnlock", Doors.LockUnlock)
 RegisterKeyMapping('+doorLockUnlock', 'DoorlockUnlock', 'keyboard', 'E')
