@@ -307,5 +307,9 @@ function Doors.Create(doorId, data, lock)
     end
 end
 
-RegisterCommand("+doorLockUnlock", Doors.LockUnlock)
-RegisterKeyMapping('+doorLockUnlock', 'DoorlockUnlock', 'keyboard', 'E')
+exports.plouffe_lib:RegisterKeyMapping({
+    name = "doorLockUnlock",
+    key = "E",
+    label = "Locking / unlocking doors",
+    onPress =  Doors.LockUnlock
+})
